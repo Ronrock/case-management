@@ -269,9 +269,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      # Pinned to the floor declared in case-management-react-demo/package.json so CI proves the
+      # documented minimum actually installs, rather than passing only on whatever 22.x is latest.
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22.22.2'
           cache: npm
           cache-dependency-path: case-management-react-demo/package-lock.json
       - name: Install

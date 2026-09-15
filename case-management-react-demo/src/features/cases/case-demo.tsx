@@ -18,6 +18,7 @@ export function CaseDemo({ client, username, initialPage }: CaseDemoProps) {
   const [cases, setCases] = useState(initialPage.items)
   const [casePage, setCasePage] = useState(initialPage)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [loadMoreError, setLoadMoreError] = useState('')
   const [selectedId, setSelectedId] = useState(initialPage.items[0]?.id)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [activeView, setActiveView] = useState<'work' | 'cases'>('cases')
@@ -46,6 +47,7 @@ export function CaseDemo({ client, username, initialPage }: CaseDemoProps) {
   async function loadMoreCases() {
     if (loadingMore || casePage.page + 1 >= casePage.totalPages) return
     setLoadingMore(true)
+    setLoadMoreError('')
     try {
       const nextPage = await client.listCases(casePage.page + 1, casePage.pageSize)
       setCases((current) => {
@@ -53,6 +55,11 @@ export function CaseDemo({ client, username, initialPage }: CaseDemoProps) {
         return [...current, ...nextPage.items.filter((item) => !knownIds.has(item.id))]
       })
       setCasePage(nextPage)
+    } catch (cause) {
+      // Without this the rejection escapes the click handler unhandled: the button returns to
+      // its normal state and the unchanged count reads exactly like "there was nothing more to
+      // load". The page stays put, so the button itself is the retry.
+      setLoadMoreError(cause instanceof Error ? cause.message : 'Could not load more cases')
     } finally {
       setLoadingMore(false)
     }
@@ -77,6 +84,7 @@ export function CaseDemo({ client, username, initialPage }: CaseDemoProps) {
             totalCases={casePage.totalItems}
             hasMore={casePage.page + 1 < casePage.totalPages}
             loadingMore={loadingMore}
+            loadMoreError={loadMoreError}
             onLoadMore={loadMoreCases}
             onSelect={(caseId) => { setHighlightedTaskId(undefined); setSelectedId(caseId) }}
             onCreate={() => setDialogOpen(true)}

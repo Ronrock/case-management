@@ -1,6 +1,7 @@
 import { Plus, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,12 +14,13 @@ interface CaseRailProps {
   totalCases: number
   hasMore: boolean
   loadingMore: boolean
+  loadMoreError: string
   onLoadMore(): void
   onSelect(caseId: string): void
   onCreate(): void
 }
 
-export function CaseRail({ cases, selectedId, totalCases, hasMore, loadingMore, onLoadMore, onSelect, onCreate }: CaseRailProps) {
+export function CaseRail({ cases, selectedId, totalCases, hasMore, loadingMore, loadMoreError, onLoadMore, onSelect, onCreate }: CaseRailProps) {
   const [query, setQuery] = useState('')
   const visibleCases = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -61,6 +63,7 @@ export function CaseRail({ cases, selectedId, totalCases, hasMore, loadingMore, 
               </span>
             </button>
           ))}
+          {loadMoreError ? <Alert variant="destructive" role="alert"><AlertDescription>{loadMoreError} The cases already loaded are unchanged; select Load more cases to try again.</AlertDescription></Alert> : null}
           {hasMore ? <Button variant="outline" onClick={onLoadMore} disabled={loadingMore}>{loadingMore ? 'Loading…' : 'Load more cases'}</Button> : null}
         </div>
       </ScrollArea>

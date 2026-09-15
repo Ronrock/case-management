@@ -97,6 +97,54 @@ describe('case demo', () => {
     expect(screen.queryByRole('button', { name: 'Load more cases' })).not.toBeInTheDocument()
   })
 
+  it('reports a failed page load and keeps the paging control retryable', async () => {
+    const firstPage: Page<CaseSummary> = {
+      items: [caseItem('case-1', 'Lost transfer')],
+      page: 0,
+      pageSize: 1,
+      totalItems: 2,
+      totalPages: 2,
+    }
+    const secondPage: Page<CaseSummary> = {
+      items: [caseItem('case-2', 'Card complaint')],
+      page: 1,
+      pageSize: 1,
+      totalItems: 2,
+      totalPages: 2,
+    }
+    let secondPageAttempts = 0
+    installFetchScript((call) => {
+      if (call.url.endsWith('/cases?page=1&pageSize=1')) {
+        secondPageAttempts += 1
+        if (secondPageAttempts === 1) {
+          return { status: 503, body: { title: 'Service unavailable', detail: 'The case service is temporarily unavailable.' } }
+        }
+        return { body: secondPage }
+      }
+      if (call.url.endsWith('/cases')) return { body: firstPage }
+      if (call.url.endsWith('/cases/case-1')) return { body: caseItem('case-1', 'Lost transfer') }
+      return { body: [] }
+    })
+    const user = userEvent.setup()
+    render(<CaseDemo client={client()} username="alice" initialPage={firstPage} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Load more cases' }))
+
+    // A silent failure is indistinguishable from exhausting the pages, so the alert — not the
+    // unchanged list — is what tells the caseworker which of the two happened.
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('The case service is temporarily unavailable.')
+    const rail = within(screen.getByRole('complementary', { name: 'Cases' }))
+    expect(rail.getByText('Lost transfer')).toBeInTheDocument()
+    expect(rail.queryByText('Card complaint')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Load more cases' }))
+
+    expect(await rail.findByText('Card complaint')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(secondPageAttempts).toBe(2)
+  })
+
   it('creates a complaint with an idempotency key and selects it', async () => {
     const calls = installFetchScript((call) => {
       if (call.init.method === 'POST') return { status: 201, body: caseItem('case-new', 'New card complaint') }

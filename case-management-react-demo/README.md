@@ -8,7 +8,8 @@ Prerequisites:
 
 - Docker with Docker Compose;
 - JDK 21; and
-- Node.js 22 with npm.
+- Node.js `^22.22.2 || ^24.15.0 || >=26.0.0` with npm, as declared by this package's
+  `engines.node`. Older Node 22 releases fail to install `jsdom`, which the test suite needs.
 
 From the repository root, start the backend in one terminal:
 
