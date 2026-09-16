@@ -25,6 +25,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Matches the server's own `MAX_PAGE_SIZE` cap, so a truncated worklist is as rare as the API allows. */
+export const WORKLIST_LIMIT = 200
+
 export class CaseApiClient {
   private readonly baseUrl: string
   private readonly credentials: ApiCredentials
@@ -52,8 +55,13 @@ export class CaseApiClient {
     return this.request(`/cases?${query}`)
   }
 
-  listTasks(): Promise<TaskSummary[]> {
-    return this.request('/tasks')
+  /**
+   * The worklist, up to `limit`. `GET /tasks` returns a bare array with no total and no cursor,
+   * so a full page is indistinguishable from a truncated one at the transport level — the caller
+   * compares the returned count with the limit it asked for and says so in the UI.
+   */
+  listTasks(limit = WORKLIST_LIMIT): Promise<TaskSummary[]> {
+    return this.request(`/tasks?limit=${limit}`)
   }
 
   createComplaint(input: CreateComplaintInput): Promise<CaseSummary> {
@@ -69,9 +77,10 @@ export class CaseApiClient {
         'Content-Type': 'application/json',
         'Idempotency-Key': crypto.randomUUID(),
       },
+      // No tenantId: the server derives the tenant from the authenticated principal and refuses
+      // any other value, so sending one can only ever reproduce what it already knows or 403.
       body: JSON.stringify({
         caseDefinitionKey: 'complaint',
-        tenantId: input.tenantId,
         businessKey: input.businessKey,
         title: input.title,
         priority: 'MEDIUM',

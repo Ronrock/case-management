@@ -34,6 +34,9 @@ function client() {
   return new CaseApiClient({ baseUrl: '/case-api/v2', credentials: { username: 'alice', password: 'alice' } })
 }
 
+/** `GET /tasks`, with or without its query string — not the per-task action routes below it. */
+const WORKLIST = /^\/case-api\/v2\/tasks(\?|$)/
+
 describe('case demo', () => {
   it('refreshes the full case rail after the one-item connection check', async () => {
     installFetchScript((call) => {
@@ -156,7 +159,6 @@ describe('case demo', () => {
     render(<CaseDemo client={client()} username="alice" initialPage={page([])} />)
 
     await user.click(screen.getByRole('button', { name: 'New complaint' }))
-    await user.type(screen.getByLabelText('Tenant'), 't1')
     await user.type(screen.getByLabelText('Business key'), 'CMP-1001')
     await user.type(screen.getByLabelText('Title'), 'New card complaint')
     await user.type(screen.getByLabelText('Channel'), 'web')
@@ -170,7 +172,6 @@ describe('case demo', () => {
     expect(new Headers(create.init.headers).get('Idempotency-Key')).toBeTruthy()
     expect(JSON.parse(String(create.init.body))).toEqual({
       caseDefinitionKey: 'complaint',
-      tenantId: 't1',
       businessKey: 'CMP-1001',
       title: 'New card complaint',
       priority: 'MEDIUM',
@@ -180,7 +181,7 @@ describe('case demo', () => {
 
   it('opens a work item in the shared case workspace', async () => {
     installFetchScript((call) => {
-      if (call.url === '/case-api/v2/tasks') return { body: [{
+      if (WORKLIST.test(call.url)) return { body: [{
         id: 'task-2', caseId: 'case-2', name: 'Register complaint', state: 'OPEN',
         candidateGroups: ['complaints-handlers'], version: 1,
         availableActions: [{ action: 'claim', name: 'Claim', href: '/tasks/task-2/claim', method: 'POST' }],
@@ -207,7 +208,7 @@ describe('case demo', () => {
       availableActions: claimed ? [] : [{ action: 'claim', name: 'Claim', href: '/tasks/task-2/claim', method: 'POST' }],
     })
     const calls = installFetchScript((call) => {
-      if (call.url === '/case-api/v2/tasks') {
+      if (WORKLIST.test(call.url)) {
         globalTaskReads += 1
         return { body: [task()] }
       }

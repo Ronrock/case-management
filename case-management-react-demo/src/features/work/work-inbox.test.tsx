@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { CaseApiClient } from '@/lib/case-api-client'
+import { CaseApiClient, WORKLIST_LIMIT } from '@/lib/case-api-client'
 import { installFetchScript } from '@/test/fetch-script'
 import { WorkInbox } from './work-inbox'
 
@@ -46,5 +46,31 @@ describe('work inbox', () => {
     await user.click(screen.getByRole('button', { name: 'Refresh work' }))
     expect(await screen.findByText('Assess complaint')).toBeInTheDocument()
     expect(requestCount).toBe(2)
+  })
+
+  /**
+   * `GET /tasks` returns a bare array with no total and no cursor, so a response that exactly
+   * fills the requested limit is the only evidence that work may have been left behind. Rendering
+   * it as "My Work" full stop let a busy caseworker lose assigned work silently.
+   */
+  it('requests an explicit limit and says so when the worklist fills it', async () => {
+    const calls = installFetchScript(() => ({ body: Array.from({ length: WORKLIST_LIMIT }, (_unused, index) => ({
+      id: `task-${index}`, caseId: 'case-1', name: `Assess ${index}`, state: 'CLAIMED',
+      assignee: 'alice', candidateGroups: [], version: 1, availableActions: [],
+    })) }))
+    render(<WorkInbox client={client()} username="alice" refreshKey={0} onOpenTask={vi.fn()} />)
+
+    expect(await screen.findByRole('status')).toHaveTextContent(`Showing the first ${WORKLIST_LIMIT} items`)
+    expect(calls[0].url).toBe(`/case-api/v2/tasks?limit=${WORKLIST_LIMIT}`)
+  })
+
+  it('stays quiet when the worklist is complete', async () => {
+    installFetchScript(() => ({ body: [
+      { id: 'assigned', caseId: 'case-1', name: 'Assess complaint', state: 'CLAIMED', assignee: 'alice', candidateGroups: [], version: 2, availableActions: [] },
+    ] }))
+    render(<WorkInbox client={client()} username="alice" refreshKey={0} onOpenTask={vi.fn()} />)
+
+    expect(await screen.findByText('Assess complaint')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })

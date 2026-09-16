@@ -1,5 +1,6 @@
 import type { CaseWorkspaceSnapshot } from '@/lib/api-types'
 import { humanize } from '@/lib/format'
+import { oldestFirst } from '@/lib/time'
 
 interface SpineEntry {
   id: string
@@ -24,7 +25,7 @@ export function CaseSpine({ snapshot }: { snapshot: CaseWorkspaceSnapshot }) {
   for (const event of snapshot.events) {
     if (event.time) entries.push(entry(event.id, event.type, 'OBSERVED', event.time))
   }
-  entries.sort((a, b) => a.time.localeCompare(b.time) || a.id.localeCompare(b.id))
+  entries.sort((a, b) => oldestFirst(a.time, b.time) || a.id.localeCompare(b.id))
 
   return (
     <ol className="case-spine">
