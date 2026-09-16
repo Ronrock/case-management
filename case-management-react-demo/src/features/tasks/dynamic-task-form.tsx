@@ -14,11 +14,20 @@ interface DynamicTaskFormProps {
 
 export function DynamicTaskForm({ definition, onSubmit, submitting = false }: DynamicTaskFormProps) {
   const [error, setError] = useState('')
-  const unsupported = Object.entries(definition.schema.properties).find(([, property]) => !['string', 'integer'].includes(property.type))
+  const fields = declaredFields(definition)
+  const unsupported = fields === undefined
+    ? undefined
+    : fields.find(([, property]) => !['string', 'integer'].includes(property.type))
+  // Undeclared fields and zero declared fields are different answers. `{ "properties": {} }` is a
+  // task that genuinely asks for nothing and can be completed; a schema with no `properties` at
+  // all leaves this renderer unable to say what the task needs, so it must refuse rather than
+  // silently submit an empty payload for a form that may require data.
+  const undeclared = fields === undefined
+  const blocked = undeclared || Boolean(unsupported)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (unsupported) return
+    if (blocked || !fields) return
     const form = event.currentTarget
     if (!form.reportValidity()) {
       setError('Complete every required field.')
@@ -26,7 +35,7 @@ export function DynamicTaskForm({ definition, onSubmit, submitting = false }: Dy
     }
     const data = new FormData(form)
     const values: Record<string, unknown> = {}
-    for (const [name, property] of Object.entries(definition.schema.properties)) {
+    for (const [name, property] of fields) {
       const raw = String(data.get(name) ?? '')
       if (raw === '') continue
       values[name] = property.type === 'integer' ? Number.parseInt(raw, 10) : raw
@@ -37,7 +46,7 @@ export function DynamicTaskForm({ definition, onSubmit, submitting = false }: Dy
 
   return (
     <form className="grid gap-4" onSubmit={submit} noValidate>
-      {Object.entries(definition.schema.properties).map(([name, property]) => {
+      {(fields ?? []).map(([name, property]) => {
         const label = property.title || humanize(name)
         const required = definition.schema.required?.includes(name)
         const id = `task-field-${name}`
@@ -57,11 +66,24 @@ export function DynamicTaskForm({ definition, onSubmit, submitting = false }: Dy
           </div>
         )
       })}
+      {undeclared ? <p role="alert" className="text-sm text-destructive">This task&apos;s form declares no fields, so it cannot be completed here. Report it to your case administrator.</p> : null}
       {unsupported ? <p role="alert" className="text-sm text-destructive">Unsupported field {unsupported[0]}: {unsupported[1].type}</p> : null}
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
-      <Button type="submit" disabled={submitting || Boolean(unsupported)}>{submitting ? 'Completing…' : 'Complete task'}</Button>
+      <Button type="submit" disabled={submitting || blocked}>{submitting ? 'Completing…' : 'Complete task'}</Button>
     </form>
   )
+}
+
+/**
+ * The form's declared fields, or `undefined` when the schema does not declare any. The server
+ * validates a form's `schema` only as "an object", so `properties` can be absent, null, or not
+ * an object at all; reading it unguarded threw before the dialog could render anything.
+ */
+function declaredFields(definition: TaskFormDefinition) {
+  const properties = definition.schema?.properties
+  if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return undefined
+  return Object.entries(properties)
+    .filter(([, property]) => Boolean(property) && typeof property === 'object')
 }
 
 function humanize(value: string) {

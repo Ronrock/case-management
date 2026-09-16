@@ -39,7 +39,6 @@ export interface CaseSummary {
 }
 
 export interface CreateComplaintInput {
-  tenantId: string
   businessKey: string
   title: string
   channel: string
@@ -124,10 +123,13 @@ export interface JsonSchemaProperty {
 }
 
 export interface TaskFormDefinition {
+  // `properties` is optional because the case-contract schema declares a form's `schema` as no
+  // more than `{ "type": "object" }` (case-contract-v1.schema.json). A contract that publishes
+  // `"schema": {}` is valid, reaches this client, and must not be assumed to describe fields.
   schema: {
-    type: 'object'
+    type?: 'object'
     required?: string[]
-    properties: Record<string, JsonSchemaProperty>
+    properties?: Record<string, JsonSchemaProperty>
   }
   uiSchema?: Record<string, { widget?: 'textarea' }>
 }

@@ -19,6 +19,10 @@ export function TaskActions({ client, caseItem, task, onChanged }: TaskActionsPr
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // Completion failures are reported separately from claim and form-load failures because they
+  // have to render inside DialogContent. Radix makes everything outside the open modal inert, so
+  // an error placed beside the buttons is unreachable exactly when the user needs to act on it.
+  const [completionError, setCompletionError] = useState('')
   const claim = task.availableActions?.find((action) => action.action === 'claim')
   const complete = task.availableActions?.find((action) => action.action === 'complete')
 
@@ -45,6 +49,7 @@ export function TaskActions({ client, caseItem, task, onChanged }: TaskActionsPr
   async function showComplete() {
     setBusy(true)
     setError('')
+    setCompletionError('')
     try {
       setForm(await client.taskForm(caseItem, task))
       setOpen(true)
@@ -63,22 +68,26 @@ export function TaskActions({ client, caseItem, task, onChanged }: TaskActionsPr
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Complete {task.name}</DialogTitle><DialogDescription>Fields come from the case definition's pinned contract.</DialogDescription></DialogHeader>
+          {completionError ? <Alert variant="destructive" role="alert"><AlertDescription>{completionError}</AlertDescription></Alert> : null}
           {form && complete ? <DynamicTaskForm definition={form} submitting={busy} onSubmit={async (variables) => {
             setBusy(true)
-            setError('')
+            setCompletionError('')
             try {
               await client.executeTaskAction(complete, task.version, variables)
               setOpen(false)
               onChanged()
             } catch (reason) {
               if (reason instanceof ApiError && reason.status === 403) {
-                setError('The backend refused this task action for your account.')
+                setCompletionError('The backend refused this task action for your account.')
               } else if (reason instanceof ApiError && reason.status === 412) {
-                const message = 'This item changed on the server. The workspace has been refreshed.'
-                setError(message)
+                // The dialog stays open and the refreshed task arrives as a new prop on this same
+                // instance (the card is keyed by task id), so submitting again uses the current
+                // version rather than repeating the conflict.
+                const message = 'This task changed on the server. It has been refreshed — review the values and submit again.'
+                setCompletionError(message)
                 onChanged(message)
               } else {
-                setError(reason instanceof Error ? reason.message : 'Could not complete this task')
+                setCompletionError(reason instanceof Error ? reason.message : 'Could not complete this task')
               }
             } finally { setBusy(false) }
           }} /> : null}

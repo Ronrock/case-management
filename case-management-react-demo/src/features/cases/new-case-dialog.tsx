@@ -25,7 +25,6 @@ export function NewCaseDialog({ open, onOpenChange, onCreate }: NewCaseDialogPro
     setError('')
     try {
       await onCreate({
-        tenantId: String(data.get('tenantId')),
         businessKey: String(data.get('businessKey')),
         title: String(data.get('title')),
         channel: String(data.get('channel')),
@@ -45,7 +44,6 @@ export function NewCaseDialog({ open, onOpenChange, onCreate }: NewCaseDialogPro
       <DialogContent>
         <DialogHeader><DialogTitle>New complaint</DialogTitle><DialogDescription>Start a complaint case in the live backend.</DialogDescription></DialogHeader>
         <form className="grid gap-4" onSubmit={submit}>
-          <Field label="Tenant" name="tenantId" defaultValue="" />
           <Field label="Business key" name="businessKey" />
           <Field label="Title" name="title" />
           <Field label="Channel" name="channel" />
@@ -59,6 +57,6 @@ export function NewCaseDialog({ open, onOpenChange, onCreate }: NewCaseDialogPro
   )
 }
 
-function Field({ label, name, type = 'text', defaultValue, required = true }: { label: string; name: string; type?: string; defaultValue?: string; required?: boolean }) {
-  return <div className="grid gap-2"><Label htmlFor={name}>{label}</Label><Input id={name} name={name} type={type} defaultValue={defaultValue} required={required} /></div>
+function Field({ label, name, type = 'text', required = true }: { label: string; name: string; type?: string; required?: boolean }) {
+  return <div className="grid gap-2"><Label htmlFor={name}>{label}</Label><Input id={name} name={name} type={type} required={required} /></div>
 }

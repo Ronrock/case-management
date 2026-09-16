@@ -27,4 +27,26 @@ describe('dynamic task form', () => {
 
     expect(onSubmit).toHaveBeenCalledWith({ outcome: 'upheld', rationale: 'Merchant evidence confirms the charge', amount: 125, reference: 'DOC-42' })
   })
+  /**
+   * `case-contract-v1.schema.json` constrains a form's `schema` to `{ "type": "object" }` and
+   * nothing more, so `{}` is a schema a case author can legitimately publish. Reading
+   * `schema.properties` unguarded threw here and took the completion dialog down with it.
+   */
+  it('refuses a valid schema that declares no fields instead of throwing', () => {
+    const onSubmit = vi.fn()
+    render(<DynamicTaskForm definition={{ schema: {} }} onSubmit={onSubmit} />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('declares no fields')
+    expect(screen.getByRole('button', { name: 'Complete task' })).toBeDisabled()
+  })
+
+  it('treats an empty property set as a task that asks for nothing', async () => {
+    const onSubmit = vi.fn()
+    const user = userEvent.setup()
+    render(<DynamicTaskForm definition={{ schema: { type: 'object', properties: {} } }} onSubmit={onSubmit} />)
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Complete task' }))
+    expect(onSubmit).toHaveBeenCalledWith({})
+  })
 })

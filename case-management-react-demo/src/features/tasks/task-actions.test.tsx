@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -65,5 +65,42 @@ describe('task actions', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Claim' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('The backend refused this task action for your account.')
     expect(onChanged).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Radix marks everything outside an open modal inert, so an error rendered beside the action
+   * buttons is unreachable precisely while the completion dialog is open — the user saw the modal
+   * sit there having apparently done nothing. The failure has to appear inside DialogContent.
+   */
+  it('shows a failed completion inside the open dialog and allows another attempt', async () => {
+    let attempts = 0
+    installFetchScript((call) => {
+      if (call.url.endsWith('/case-definitions/complaint/versions/3/forms/assessForm')) {
+        return { body: { schema: { type: 'object', required: ['outcome'], properties: { outcome: { type: 'string', enum: ['upheld'] } } } } }
+      }
+      if (call.url.endsWith('/tasks/task-1/complete')) {
+        attempts += 1
+        if (attempts === 1) return { status: 403, body: { title: 'Forbidden' } }
+        return { body: {} }
+      }
+      return { body: {} }
+    })
+    const onChanged = vi.fn()
+    const task: TaskSummary = { id: 'task-1', caseId: 'case-1', name: 'Assess', state: 'CLAIMED', candidateGroups: [], formKey: 'assessForm', version: 7, availableActions: [{ action: 'complete', name: 'Complete', href: '/case-api/v2/tasks/task-1/complete', method: 'POST', formKey: 'assessForm' }] }
+    render(<TaskActions client={client()} caseItem={caseItem} task={task} onChanged={onChanged} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Complete' }))
+    await userEvent.selectOptions(await screen.findByLabelText('Outcome'), 'upheld')
+    await userEvent.click(screen.getByRole('button', { name: 'Complete task' }))
+
+    const dialog = await screen.findByRole('dialog')
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert).toHaveTextContent('refused this task action')
+    expect(dialog).toBeInTheDocument()
+    expect(onChanged).not.toHaveBeenCalled()
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Complete task' }))
+    expect(onChanged).toHaveBeenCalledOnce()
+    expect(attempts).toBe(2)
   })
 })

@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import type { CaseComment, CaseEvent, CaseSummary } from '@/lib/api-types'
 import { ApiError, type CaseApiClient } from '@/lib/case-api-client'
+import { newestFirst } from '@/lib/time'
 
 interface ActivityPanelProps {
   client: CaseApiClient
@@ -127,17 +128,9 @@ function combineActivity(events: CaseEvent[], comments: CaseComment[]): Activity
     actor: comment.author,
     time: comment.createdAt,
   }))
-  return [...eventEntries, ...commentEntries].sort((left, right) => {
-    const timeDifference = activityTime(right.time) - activityTime(left.time)
-    return timeDifference
-      || `${left.kind}:${left.id}`.localeCompare(`${right.kind}:${right.id}`)
-  })
-}
-
-function activityTime(value?: string | null) {
-  if (!value) return Number.NEGATIVE_INFINITY
-  const parsed = Date.parse(value)
-  return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed
+  return [...eventEntries, ...commentEntries].sort((left, right) =>
+    newestFirst(left.time, right.time)
+      || `${left.kind}:${left.id}`.localeCompare(`${right.kind}:${right.id}`))
 }
 
 function eventLabel(type: string) {

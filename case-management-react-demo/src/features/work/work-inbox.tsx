@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { TaskSummary } from '@/lib/api-types'
-import type { CaseApiClient } from '@/lib/case-api-client'
+import { WORKLIST_LIMIT, type CaseApiClient } from '@/lib/case-api-client'
 
 interface WorkInboxProps {
   client: CaseApiClient
@@ -29,6 +29,10 @@ export function WorkInbox({ client, username, refreshKey, onOpenTask }: WorkInbo
   }, [client, requestKey])
 
   const tasks = load.key === requestKey ? load.tasks : undefined
+  // `GET /tasks` answers with a bare array: no total, no cursor. A response that exactly fills the
+  // limit is therefore the only signal that work may have been left behind, and staying silent
+  // about it would present a bounded slice as the whole queue.
+  const trimmed = tasks !== undefined && tasks.length >= WORKLIST_LIMIT
   const assigned = tasks?.filter((task) => task.assignee === username) ?? []
   const claimable = tasks?.filter((task) => task.assignee !== username && task.availableActions.some((action) => action.action === 'claim')) ?? []
   const other = tasks?.filter((task) => !assigned.includes(task) && !claimable.includes(task)) ?? []
@@ -42,6 +46,7 @@ export function WorkInbox({ client, username, refreshKey, onOpenTask }: WorkInbo
       {load.key === requestKey && load.error ? <Alert variant="destructive"><AlertDescription>{load.error}</AlertDescription></Alert> : null}
       {!tasks ? <p className="empty-copy">Loading work…</p> : null}
       {tasks?.length === 0 ? <p className="empty-copy">No work is currently visible.</p> : null}
+      {trimmed ? <Alert role="status"><AlertDescription>Showing the first {WORKLIST_LIMIT} items. The worklist API returns no total, so more work may exist than is listed here.</AlertDescription></Alert> : null}
       {tasks && tasks.length > 0 ? <div className="work-groups">
         <WorkGroup title="Assigned to me" tasks={assigned} empty="No work is assigned to you." onOpenTask={onOpenTask} />
         <WorkGroup title="Available to claim" tasks={claimable} empty="No work is available to claim." onOpenTask={onOpenTask} />

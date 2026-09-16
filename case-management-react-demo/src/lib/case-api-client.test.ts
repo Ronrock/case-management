@@ -117,7 +117,7 @@ describe('case API client', () => {
     )
 
     expect(calls.map(({ url }) => url)).toEqual([
-      '/case-api/v2/tasks',
+      '/case-api/v2/tasks?limit=200',
       '/case-api/v2/cases/case-1/comments',
       '/case-api/v2/cases/case-1/comments',
     ])
